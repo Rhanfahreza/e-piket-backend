@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strings"
+	"time"
 
 	"e-piket-be/config"
 	"e-piket-be/internal/models"
@@ -22,10 +23,27 @@ type JamKosongInput struct {
 	GuruPengganti  string `json:"guru_pengganti"`
 }
 
-// GetAll mengambil semua data guru pengganti / jam kosong
+// GetAll mengambil data guru pengganti / jam kosong khusus hari ini (otomatis ke-reset tiap pukul 00:00:00)
+// Bisa juga melihat arsip hari sebelumnya dengan parameter ?tanggal=YYYY-MM-DD
 func (h *JamKosongHandler) GetAll(c fiber.Ctx) error {
+	tanggal := strings.TrimSpace(c.Query("tanggal"))
+	if tanggal == "" {
+		tanggal = time.Now().Format("2006-01-02")
+	}
+
+	search := strings.TrimSpace(c.Query("search"))
+
+	query := config.DB.Where("tanggal = ?", tanggal)
+	if search != "" {
+		like := "%" + search + "%"
+		query = query.Where(
+			"kelas LIKE ? OR jam_ke LIKE ? OR guru_tidak_hadir LIKE ? OR guru_pengganti LIKE ?",
+			like, like, like, like,
+		)
+	}
+
 	var list []models.JamKosong
-	if err := config.DB.Order("id DESC").Find(&list).Error; err != nil {
+	if err := query.Order("id DESC").Find(&list).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal mengambil data jam kosong: " + err.Error(),
@@ -34,6 +52,8 @@ func (h *JamKosongHandler) GetAll(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"success": true,
+		"tanggal": tanggal,
+		"total":   len(list),
 		"data":    list,
 	})
 }
@@ -56,7 +76,7 @@ func (h *JamKosongHandler) GetByID(c fiber.Ctx) error {
 	})
 }
 
-// Create menambahkan data guru pengganti / jam kosong baru
+// Create menambahkan data guru pengganti / jam kosong baru untuk hari ini
 func (h *JamKosongHandler) Create(c fiber.Ctx) error {
 	var input JamKosongInput
 	if err := c.Bind().JSON(&input); err != nil {
@@ -82,7 +102,10 @@ func (h *JamKosongHandler) Create(c fiber.Ctx) error {
 		input.GuruPengganti = "Belum Ada"
 	}
 
+	today := time.Now().Format("2006-01-02")
+
 	item := models.JamKosong{
+		Tanggal:        today,
 		Kelas:          input.Kelas,
 		JamKe:          input.JamKe,
 		GuruTidakHadir: input.GuruTidakHadir,

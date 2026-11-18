@@ -35,6 +35,7 @@ func SetupRoutes(app *fiber.App) {
 	healthHandler := handlers.NewHealthHandler()
 	authHandler := handlers.NewAuthHandler()
 	userHandler := handlers.NewUserHandler()
+	kehadiranGuruHandler := handlers.NewKehadiranGuruHandler()
 	jamKosongHandler := handlers.NewJamKosongHandler()
 
 	// Health check
@@ -52,7 +53,10 @@ func SetupRoutes(app *fiber.App) {
 	auth.Post("/login", middleware.LoginRateLimiter(), authHandler.Login)
 	auth.Get("/me", middleware.JWTProtected(), authHandler.Me)
 
-	// 3. CRUD Guru Pengganti / Jam Kosong
+	// 3. Page 1 Kiri: Kehadiran Guru (Murni Read-Only GET - Data Dummy)
+	api.Get("/kehadiran-guru", kehadiranGuruHandler.GetAll)
+
+	// 4. Page 1 Kanan: CRUD Guru Pengganti / Jam Kosong (Otomatis Reset Harian via kolom tanggal)
 	jamKosong := api.Group("/jam-kosong")
 	jamKosong.Get("/", jamKosongHandler.GetAll)
 	jamKosong.Get("/:id", jamKosongHandler.GetByID)
@@ -60,7 +64,7 @@ func SetupRoutes(app *fiber.App) {
 	jamKosong.Put("/:id", jamKosongHandler.Update)
 	jamKosong.Delete("/:id", jamKosongHandler.Delete)
 
-	// 4. Users Routes
+	// 5. Users Routes
 	users := api.Group("/users", middleware.JWTProtected())
 	users.Get("/", userHandler.GetAll)
 	users.Post("/", userHandler.Create)
